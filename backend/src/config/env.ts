@@ -8,6 +8,7 @@ const requiredEnvVars = [
   'JWT_ACCESS_SECRET',
   'JWT_REFRESH_SECRET',
   'GEMINI_API_KEY',
+  'GROQ_API_KEY',
   'TAVILY_API_KEY',
 ] as const;
 

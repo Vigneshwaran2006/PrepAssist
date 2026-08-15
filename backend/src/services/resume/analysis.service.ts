@@ -1,4 +1,5 @@
-import { generateStructuredContent, GEMINI_MODEL_NAME } from '../ai/gemini.service';
+import { generateWithRouter } from '../ai/ai-router.service';
+import { GEMINI_MODEL_NAME } from '../ai/gemini.service';
 import type {
   PersonalInfo,
   SkillCategory,
@@ -146,9 +147,15 @@ export async function analyzeResumeWithAI(
 ): Promise<AIAnalysisResult> {
   const prompt = buildResumeAnalysisPrompt(resumeText);
 
-  const result = await generateStructuredContent<Omit<AIAnalysisResult, 'ai_model'>>(
+  // Primary: Gemini (great for structured resume extraction)
+  // Fallback: Groq medium (openai/gpt-oss-20b)
+  const result = await generateWithRouter<Omit<AIAnalysisResult, 'ai_model'>>(
     prompt,
-    {}
+    {
+      primary: 'gemini',
+      fallbacks: ['groq-medium', 'groq-large'],
+      maxOutputTokens: 8192,
+    }
   );
 
   const ats_score = Math.max(0, Math.min(100, Math.round(result.ats_score ?? 0)));

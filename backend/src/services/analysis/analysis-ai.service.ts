@@ -1,4 +1,5 @@
-import { generateStructuredContent, GEMINI_MODEL_NAME } from '../ai/gemini.service';
+import { generateWithRouter } from '../ai/ai-router.service';
+import { GROQ_LARGE_MODEL } from '../ai/groq.service';
 import type {
   CompanyDetails,
   DriveProcess,
@@ -287,17 +288,27 @@ export async function runFullAnalysis(
   ctx: AnalysisContext
 ): Promise<FullAIAnalysisResult> {
   const [companyDrive, resumeGap, prepGuide] = await Promise.all([
-    generateStructuredContent<{
+    generateWithRouter<{
       company_details: CompanyDetails;
       drive_process: DriveProcess;
-    }>(buildCompanyDrivePrompt(ctx), { maxOutputTokens: 16384 }),
+    }>(buildCompanyDrivePrompt(ctx), {
+      primary: 'groq-large',
+      fallbacks: ['gemini', 'groq-medium'],
+      maxOutputTokens: 16384,
+    }),
 
-    generateStructuredContent<{
+    generateWithRouter<{
       resume_suggestions: ResumeSuggestions;
       gap_analysis: GapAnalysis;
-    }>(buildResumeGapPrompt(ctx), { maxOutputTokens: 16384 }),
+    }>(buildResumeGapPrompt(ctx), {
+      primary: 'groq-large',
+      fallbacks: ['gemini', 'groq-medium'],
+      maxOutputTokens: 16384,
+    }),
 
-    generateStructuredContent<PreparationGuide>(buildPrepGuidePrompt(ctx), {
+    generateWithRouter<PreparationGuide>(buildPrepGuidePrompt(ctx), {
+      primary: 'groq-large',
+      fallbacks: ['gemini', 'groq-medium'],
       maxOutputTokens: 16384,
     }),
   ]);
@@ -308,6 +319,6 @@ export async function runFullAnalysis(
     resume_suggestions: resumeGap.resume_suggestions,
     gap_analysis: resumeGap.gap_analysis,
     preparation_guide: prepGuide,
-    ai_model: GEMINI_MODEL_NAME,
+    ai_model: `groq/${GROQ_LARGE_MODEL}`,
   };
 }

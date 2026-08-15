@@ -1,4 +1,4 @@
-import { generateStructuredContent } from '../ai/gemini.service';
+import { generateWithRouter } from '../ai/ai-router.service';
 
 /**
  * If user didn't provide a role, extract it from the JD.
@@ -14,7 +14,10 @@ ${jd.slice(0, 6000)}
 """`;
 
   try {
-    const result = await generateStructuredContent<{ role: string }>(prompt, {
+    // Small extraction task — use fastest available
+    const result = await generateWithRouter<{ role: string }>(prompt, {
+      primary: 'groq-fast',
+      fallbacks: ['gemini', 'groq-medium'],
       maxOutputTokens: 200,
     });
     return result.role?.trim() || 'Software Engineer';
