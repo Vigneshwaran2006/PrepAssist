@@ -1,5 +1,4 @@
-import { generateWithRouter } from '../ai/ai-router.service';
-import { GEMINI_MODEL_NAME } from '../ai/gemini.service';
+import { generateStructuredContent, GEMINI_MODEL_NAME } from '../ai/gemini.service';
 import type {
   PersonalInfo,
   SkillCategory,
@@ -39,10 +38,9 @@ export interface AIAnalysisResult {
 }
 
 function buildResumeAnalysisPrompt(resumeText: string): string {
-  // Trim resume to reasonable length
-  const trimmed = resumeText.slice(0, 8000);
+  return `You are an expert resume analyzer and ATS specialist for tech job applications.
 
-  return `Analyze this resume. Return ONLY valid JSON matching the schema. Use null for missing single values, [] for missing lists.
+Return ONLY valid JSON matching this schema. Use null for missing single values, [] for missing lists.
 
 SCHEMA:
 {
@@ -60,14 +58,14 @@ SCHEMA:
   "strengths": ["string"]
 }
 
-Provide 5-8 improvement_suggestions and 3-5 strengths.
+Provide 5-10 improvement_suggestions and 3-6 strengths.
 
 RESUME:
 """
-${trimmed}
+${resumeText}
 """
 
-Return ONLY the JSON.`;
+Return ONLY the JSON object.`;
 }
 
 export async function analyzeResumeWithAI(
@@ -75,15 +73,9 @@ export async function analyzeResumeWithAI(
 ): Promise<AIAnalysisResult> {
   const prompt = buildResumeAnalysisPrompt(resumeText);
 
-  // Gemini has much higher token limits, use as primary
-  // Groq only as fallback with smaller output budget
-  const result = await generateWithRouter<Omit<AIAnalysisResult, 'ai_model'>>(
+  const result = await generateStructuredContent<Omit<AIAnalysisResult, 'ai_model'>>(
     prompt,
-    {
-      primary: 'gemini',
-      fallbacks: ['groq-fast', 'groq-medium'],
-      maxOutputTokens: 4000,
-    }
+    { maxOutputTokens: 8192 }
   );
 
   const ats_score = Math.max(0, Math.min(100, Math.round(result.ats_score ?? 0)));

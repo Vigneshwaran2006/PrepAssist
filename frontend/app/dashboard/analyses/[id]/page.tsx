@@ -129,11 +129,10 @@ export default function AnalysisDetailPage(): React.JSX.Element {
                   <p className="text-gray-600">{analysis.resolved_role ?? analysis.role ?? '—'}</p>
                   <div className="flex items-center gap-2 mt-2 flex-wrap">
                     <AnalysisStatusBadge status={analysis.status} />
-                    <span className={`text-xs px-2.5 py-1 rounded-full border ${
-                      analysis.drive_type === 'on_campus'
+                    <span className={`text-xs px-2.5 py-1 rounded-full border ${analysis.drive_type === 'on_campus'
                         ? 'bg-purple-50 text-purple-700 border-purple-200'
                         : 'bg-teal-50 text-teal-700 border-teal-200'
-                    }`}>
+                      }`}>
                       {analysis.drive_type === 'on_campus' ? '🎓 On-Campus' : '💼 Off-Campus'}
                     </span>
                   </div>
@@ -154,25 +153,62 @@ export default function AnalysisDetailPage(): React.JSX.Element {
             </div>
           )}
 
-          {analysis.status === 'failed' && (
-            <div className="bg-red-50 border border-red-200 rounded-xl p-8 text-center">
-              <div className="w-14 h-14 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <span className="text-2xl">⚠️</span>
+          {analysis.status === 'failed' && (() => {
+            const errorMsg = analysis.error_message ?? '';
+            const isBusy =
+              errorMsg.includes('AI service is temporarily busy') ||
+              errorMsg.includes('high demand') ||
+              errorMsg.includes('503') ||
+              errorMsg.includes('overloaded');
+
+            if (isBusy) {
+              return (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-8 text-center">
+                  <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <span className="text-3xl">⏳</span>
+                  </div>
+                  <h3 className="text-xl font-semibold text-amber-800 mb-2">Servers Are Busy</h3>
+                  <p className="text-amber-700 text-sm mb-2 max-w-md mx-auto">
+                    Google&apos;s AI servers are experiencing high demand right now.
+                  </p>
+                  <p className="text-amber-600 text-xs mb-6 max-w-md mx-auto">
+                    This is temporary and usually resolves in a minute or two. Please wait and try again.
+                  </p>
+                  <Button
+                    variant="primary"
+                    loading={retrying}
+                    onClick={handleRetry}
+                    icon="🔄"
+                  >
+                    {retrying ? 'Retrying...' : 'Try Again'}
+                  </Button>
+                  <p className="text-xs text-gray-500 mt-4">
+                    Tip: If it fails again, wait 60 seconds before retrying.
+                  </p>
+                </div>
+              );
+            }
+
+            return (
+              <div className="bg-red-50 border border-red-200 rounded-xl p-8 text-center">
+                <div className="w-14 h-14 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <span className="text-2xl">⚠️</span>
+                </div>
+                <h3 className="text-xl font-semibold text-red-700 mb-2">Analysis Failed</h3>
+                <p className="text-red-600 text-sm mb-6 max-w-md mx-auto">
+                  {errorMsg || 'An unknown error occurred'}
+                </p>
+                <Button
+                  variant="danger"
+                  loading={retrying}
+                  onClick={handleRetry}
+                  icon="🔄"
+                >
+                  Retry Analysis
+                </Button>
               </div>
-              <h3 className="text-xl font-semibold text-red-700 mb-2">Analysis Failed</h3>
-              <p className="text-red-600 text-sm mb-6 max-w-md mx-auto">
-                {analysis.error_message ?? 'Unknown error'}
-              </p>
-              <Button
-                variant="danger"
-                loading={retrying}
-                onClick={handleRetry}
-                icon="🔄"
-              >
-                Retry Analysis
-              </Button>
-            </div>
-          )}
+            );
+          })()}
 
           {analysis.status === 'completed' && (
             <>
@@ -184,11 +220,10 @@ export default function AnalysisDetailPage(): React.JSX.Element {
                       <button
                         key={tab.key}
                         onClick={() => setActiveTab(tab.key)}
-                        className={`flex items-center gap-2 px-5 py-3.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
-                          activeTab === tab.key
+                        className={`flex items-center gap-2 px-5 py-3.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${activeTab === tab.key
                             ? 'border-blue-600 text-blue-600 bg-blue-50/50'
                             : 'border-transparent text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                        }`}
+                          }`}
                       >
                         <span>{tab.icon}</span>
                         {tab.label}

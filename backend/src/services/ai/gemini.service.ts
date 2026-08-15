@@ -8,7 +8,8 @@ export const GEMINI_MODEL_NAME = 'gemini-flash-latest';
 const FALLBACK_MODELS = [
   'gemini-flash-latest',
   'gemini-flash-lite-latest',
-  'gemini-flash-latest', // try primary again after lite
+  'gemini-flash-latest',
+  'gemini-flash-lite-latest',
 ];
 
 export function getGeminiModel(
@@ -50,7 +51,8 @@ function isRetryableError(error: unknown): boolean {
     msg.includes('500') ||
     msg.includes('ECONNRESET') ||
     msg.includes('ETIMEDOUT') ||
-    msg.includes('ENOTFOUND')
+    msg.includes('ENOTFOUND') ||
+    msg.includes('fetch failed')
   );
 }
 
@@ -63,7 +65,7 @@ async function generateWithRetry(
   prompt: string,
   modelName: string,
   maxOutputTokens: number,
-  maxRetries = 5
+  maxRetries = 6
 ): Promise<string> {
   let lastError: unknown;
 
@@ -78,11 +80,11 @@ async function generateWithRetry(
       if (isRateLimitError(error)) throw error;
 
       if (isRetryableError(error) && attempt < maxRetries - 1) {
-        // Longer delays for 503 (server overload)
-        const baseDelay = isOverloadedError(error) ? 4000 : 1000;
-        const delay = Math.min(baseDelay * Math.pow(2, attempt), 30000);
+        // Aggressive delays for 503 (servers overloaded)
+        const baseDelay = isOverloadedError(error) ? 5000 : 1500;
+        const delay = Math.min(baseDelay * Math.pow(1.8, attempt), 45000);
         const errMsg =
-          error instanceof Error ? error.message.slice(0, 100) : 'unknown';
+          error instanceof Error ? error.message.slice(0, 80) : 'unknown';
         console.log(
           `⚠ Gemini ${modelName} attempt ${attempt + 1}/${maxRetries} failed (${errMsg}). Retrying in ${delay}ms...`
         );
@@ -136,6 +138,16 @@ export interface GenerateOptions {
   maxOutputTokens?: number;
 }
 
+/**
+ * Custom error class for user-friendly handling
+ */
+export class AIServiceBusyError extends Error {
+  constructor(message = 'AI service is temporarily busy. Please try again in a moment.') {
+    super(message);
+    this.name = 'AIServiceBusyError';
+  }
+}
+
 export async function generateStructuredContent<T>(
   prompt: string,
   options: GenerateOptions = {}
@@ -165,10 +177,7 @@ export async function generateStructuredContent<T>(
         }
 
         throw new Error(
-          `Failed to parse ${model} JSON response (${text.length} chars, likely truncated). Raw start: ${text.slice(
-            0,
-            150
-          )}...`
+          `Failed to parse ${model} JSON response (${text.length} chars). Raw start: ${text.slice(0, 150)}...`
         );
       }
     } catch (error) {
@@ -179,5 +188,13 @@ export async function generateStructuredContent<T>(
     }
   }
 
-  throw lastError;
+  // Wrap in user-friendly error
+  const msg = lastError instanceof Error ? lastError.message : String(lastError);
+  if (isOverloadedError(lastError)) {
+    throw new AIServiceBusyError(
+      "Google's AI servers are experiencing high demand right now. Please wait a minute and try again."
+    );
+  }
+
+  throw new Error(msg);
 }

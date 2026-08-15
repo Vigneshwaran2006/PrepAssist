@@ -8,7 +8,6 @@ const requiredEnvVars = [
   'JWT_ACCESS_SECRET',
   'JWT_REFRESH_SECRET',
   'GEMINI_API_KEY',
-  'GROQ_API_KEY',
   'TAVILY_API_KEY',
 ] as const;
 
@@ -41,6 +40,5 @@ export const config = {
   JWT_REFRESH_EXPIRY: process.env['JWT_REFRESH_EXPIRY'] ?? '7d',
 
   GEMINI_API_KEY: process.env['GEMINI_API_KEY'] as string,
-  GROQ_API_KEY: process.env['GROQ_API_KEY'] as string,
   TAVILY_API_KEY: process.env['TAVILY_API_KEY'] as string,
 } as const;

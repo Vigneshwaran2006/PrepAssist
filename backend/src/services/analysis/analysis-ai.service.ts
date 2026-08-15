@@ -1,5 +1,4 @@
-import { generateWithRouter } from '../ai/ai-router.service';
-import { GROQ_LARGE_MODEL } from '../ai/groq.service';
+import { generateStructuredContent, GEMINI_MODEL_NAME } from '../ai/gemini.service';
 import type {
   CompanyDetails,
   DriveProcess,
@@ -22,31 +21,44 @@ interface AnalysisContext {
 function buildCompanyDrivePrompt(ctx: AnalysisContext): string {
   const driveSection =
     ctx.driveType === 'on_campus'
-      ? `Include eligibility (cgpa_cutoff, branches, batches, backlog_policy). Set application_process to null.`
-      : `Include application_process (channels, referral_info, tips). Set eligibility to null.`;
+      ? `DRIVE TYPE: ON-CAMPUS PLACEMENT
+Include "eligibility" section with CGPA cutoff, branches, batches, backlog policy.
+Do NOT include "application_process".`
+      : `DRIVE TYPE: OFF-CAMPUS APPLICATION
+Include "application_process" section with channels, referral info, tips.
+Do NOT include "eligibility".`;
 
-  return `Company: ${ctx.companyName}, Role: ${ctx.role}, Drive: ${ctx.driveType}
+  return `You are a placement expert. Based on the web research context, produce TWO sections as a JSON object for ${ctx.companyName} - ${ctx.role} role.
+
 ${driveSection}
 
-Return valid JSON only. 3-5 items per list.
+RULES:
+- Return ONLY valid JSON, no markdown fences.
+- Base facts on the web context. Do not invent specific dates, names, or numbers.
+- Provide 3-8 items per list section where sensible.
+- All fields should be filled meaningfully.
 
-SCHEMA:
+JSON SCHEMA:
 {
   "company_details": {
-    "overview": "string (2-3 sentences)",
-    "founded_year": "string|null",
-    "founder": "string|null",
-    "headquarters": "string|null",
-    "ceo": "string|null",
+    "overview": "string (3-5 sentence company overview)",
+    "founded_year": "string or null",
+    "founder": "string or null",
+    "headquarters": "string or null",
+    "ceo": "string or null",
     "industry": "string",
-    "size": "string|null",
-    "website": "string|null",
-    "what_they_do": "string",
-    "current_focus": "string",
+    "size": "string or null (e.g. '10000+ employees')",
+    "website": "string or null",
+    "what_they_do": "string (2-3 sentences)",
+    "current_focus": "string (what the company is prioritizing NOW)",
     "key_products": ["string"],
     "notable_clients": ["string"],
-    "recent_news": [{"title":"string","summary":"string","date":"string|null","url":"string|null"}],
-    "culture_and_values": [{"name":"string","description":"string"}],
+    "recent_news": [
+      { "title": "string", "summary": "string", "date": "string or null", "url": "string or null" }
+    ],
+    "culture_and_values": [
+      { "name": "string", "description": "string" }
+    ],
     "interesting_facts": ["string"],
     "competitors": ["string"],
     "why_work_here": ["string"]
@@ -54,53 +66,89 @@ SCHEMA:
   "drive_process": {
     "drive_type": "${ctx.driveType}",
     "overview": "string",
-    "total_duration": "string|null",
-    "eligibility": ${ctx.driveType === 'on_campus' ? '{"cgpa_cutoff":"string|null","branches":["string"],"batches":["string"],"backlog_policy":"string|null"}' : 'null'},
-    "application_process": ${ctx.driveType === 'off_campus' ? '{"channels":["string"],"referral_info":"string|null","tips":["string"]}' : 'null'},
-    "rounds": [{"round_number":1,"name":"string","type":"OA|Coding|Technical|HR|Behavioral","duration":"string|null","description":"string","what_to_expect":["string"],"topics_covered":["string"],"tips":["string"],"difficulty":"Easy|Medium|Hard|null"}],
-    "package_info": "string|null",
-    "bond_info": "string|null",
-    "timeline": "string|null",
+    "total_duration": "string or null",
+    ${ctx.driveType === 'on_campus' ? `"eligibility": {
+      "cgpa_cutoff": "string or null",
+      "branches": ["string"],
+      "batches": ["string"],
+      "backlog_policy": "string or null"
+    },` : `"application_process": {
+      "channels": ["string"],
+      "referral_info": "string or null",
+      "tips": ["string"]
+    },`}
+    "rounds": [
+      {
+        "round_number": integer,
+        "name": "string",
+        "type": "string (OA | Coding | Technical | HR | Managerial | Behavioral)",
+        "duration": "string or null",
+        "description": "string",
+        "what_to_expect": ["string"],
+        "topics_covered": ["string"],
+        "tips": ["string"],
+        "difficulty": "Easy | Medium | Hard or null"
+      }
+    ],
+    "package_info": "string or null",
+    "bond_info": "string or null",
+    "timeline": "string or null",
     "important_notes": ["string"]
   }
 }
 
-CONTEXT:
+COMPANY: ${ctx.companyName}
+ROLE: ${ctx.role}
+
+WEB RESEARCH CONTEXT:
 """
-${ctx.webContext.slice(0, 5000)}
+${ctx.webContext.slice(0, 25000)}
 """
 
-Return ONLY the JSON.`;
+Return ONLY the JSON object.`;
 }
 
 function buildResumeGapPrompt(ctx: AnalysisContext): string {
   const skills = (ctx.resume.skills ?? [])
-    .flatMap((c) => c.items)
-    .slice(0, 20)
+    .flatMap((c) => c.items.map((s) => `${s} (${c.category})`))
     .join(', ');
   const projects = (ctx.resume.projects ?? [])
-    .slice(0, 3)
-    .map((p) => `${p.name}[${p.technologies.slice(0, 4).join(',')}]`)
-    .join('; ');
+    .map((p) => `${p.name}: ${p.description} [${p.technologies.join(', ')}]`)
+    .join('\n');
+  const experience = (ctx.resume.experience ?? [])
+    .map((e) => `${e.role} at ${e.company} — ${e.technologies.join(', ')}`)
+    .join('\n');
 
   const jdSection = ctx.jobDescription
-    ? `\nJD: "${ctx.jobDescription.slice(0, 1500)}"\n`
+    ? `\nJOB DESCRIPTION:\n"""\n${ctx.jobDescription.slice(0, 8000)}\n"""\n`
     : '';
 
-  return `Compare resume to ${ctx.companyName} - ${ctx.role}.
+  return `You are a resume expert and career coach. Analyze the candidate's resume against the target company/role and produce TWO sections.
 
-Resume Skills: ${skills || 'N/A'}
-Projects: ${projects || 'None'}
-ATS: ${ctx.resume.ats_score ?? 'N/A'}
+CANDIDATE RESUME:
+Skills: ${skills || 'N/A'}
+Experience: ${experience || 'N/A'}
+Projects: ${projects || 'N/A'}
+ATS Score: ${ctx.resume.ats_score ?? 'N/A'} | Quality: ${ctx.resume.quality_score ?? 'N/A'}
+
+TARGET: ${ctx.companyName} - ${ctx.role}
 ${jdSection}
-Company Context:
+
+COMPANY & ROLE CONTEXT (from web research):
 """
-${ctx.webContext.slice(0, 3500)}
+${ctx.webContext.slice(0, 15000)}
 """
 
-Return valid JSON. 3-6 items per list.
+RULES:
+- Return ONLY valid JSON, no markdown fences.
+- overall_ats_score and company_fit_score: 0-100 integers.
+- match_percentage: 0-100 integer.
+- readiness_level: one of "Not Ready", "Beginner", "Approaching Ready", "Ready", "Highly Qualified".
+- Prioritize actionable, specific suggestions.
+- For missing_skills, priority 1 = highest.
+- 3-10 items per list section.
 
-SCHEMA:
+JSON SCHEMA:
 {
   "resume_suggestions": {
     "overall_ats_score": 0-100,
@@ -109,13 +157,13 @@ SCHEMA:
     "keywords_to_add": ["string"],
     "keywords_to_remove": ["string"],
     "sections_to_add": ["string"],
-    "suggestions": [{"section":"string","current_state":"string","suggested_change":"string","priority":"critical|high|medium|low","reason":"string","example":"string|null"}],
+    "suggestions": [{"section":"string","current_state":"string","suggested_change":"string","priority":"critical|high|medium|low","reason":"string","example":"string or null"}],
     "formatting_tips": ["string"],
     "sample_bullet_improvements": [{"original":"string","improved":"string"}]
   },
   "gap_analysis": {
     "match_percentage": 0-100,
-    "readiness_level": "Not Ready|Beginner|Approaching Ready|Ready|Highly Qualified",
+    "readiness_level": "Not Ready | Beginner | Approaching Ready | Ready | Highly Qualified",
     "summary": "string",
     "matched_skills": [{"skill":"string","category":"string","strength":"strong|moderate|weak"}],
     "missing_skills": [{"skill":"string","category":"string","importance":"critical|high|medium|low","priority":1,"why_needed":"string","estimated_time":"string","quick_learn_tip":"string"}],
@@ -125,39 +173,43 @@ SCHEMA:
   }
 }
 
-Return ONLY the JSON.`;
+Return ONLY the JSON object.`;
 }
 
 function buildPrepGuidePrompt(ctx: AnalysisContext): string {
   const skills = (ctx.resume.skills ?? [])
     .flatMap((c) => c.items)
-    .slice(0, 12)
+    .slice(0, 20)
     .join(', ');
 
-  return `Preparation guide for ${ctx.companyName} - ${ctx.role} (${ctx.driveType === 'on_campus' ? 'Campus' : 'Off-Campus'}).
+  return `Create step-by-step preparation guide for ${ctx.companyName} - ${ctx.role} (${ctx.driveType === 'on_campus' ? 'On-Campus' : 'Off-Campus'}).
 
-Skills: ${skills || 'N/A'}
+CANDIDATE SKILLS: ${skills || 'N/A'}
 
-Context:
+COMPANY CONTEXT:
 """
-${ctx.webContext.slice(0, 4000)}
+${ctx.webContext.slice(0, 18000)}
 """
 
-Return valid JSON. 5-7 steps. 2-3 real URLs per step (leetcode.com, github.com, neetcode.io, takeuforward.org, bytebytego.com, freecodecamp.org).
+RULES:
+- Return ONLY valid JSON, no markdown.
+- 6-10 sequential steps.
+- 2-4 REAL resources per step (leetcode.com, neetcode.io, takeuforward.org, bytebytego.com, freecodecamp.org, official docs).
+- Weekly plan summary: one string per week.
 
-SCHEMA:
+JSON SCHEMA:
 {
   "overall_strategy": "string",
   "estimated_total_prep_time": "string",
   "weekly_plan_summary": ["string"],
-  "steps": [{"step_number":1,"title":"string","description":"string","duration":"string","priority":"high|medium|low","topics":["string"],"resources":[{"type":"documentation|video|course|practice|article","title":"string","url":"string|null"}],"practice_tasks":["string"],"success_metrics":["string"]}],
+  "steps": [{"step_number":1,"title":"string","description":"string","duration":"string","priority":"high|medium|low","topics":["string"],"resources":[{"type":"documentation|video|course|practice|article|book","title":"string","url":"string or null"}],"practice_tasks":["string"],"success_metrics":["string"]}],
   "daily_practice_tips": ["string"],
   "common_mistakes_to_avoid": ["string"],
   "final_week_checklist": ["string"],
   "mindset_and_motivation": ["string"]
 }
 
-Return ONLY the JSON.`;
+Return ONLY the JSON object.`;
 }
 
 export interface FullAIAnalysisResult {
@@ -169,46 +221,24 @@ export interface FullAIAnalysisResult {
   ai_model: string;
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 export async function runFullAnalysis(
   ctx: AnalysisContext
 ): Promise<FullAIAnalysisResult> {
-  console.log('▶ Company + Drive analysis...');
-  const companyDrive = await generateWithRouter<{
-    company_details: CompanyDetails;
-    drive_process: DriveProcess;
-  }>(buildCompanyDrivePrompt(ctx), {
-    primary: 'groq-large',
-    fallbacks: ['gemini', 'groq-medium'],
-    maxOutputTokens: 3500,
-  });
+  const [companyDrive, resumeGap, prepGuide] = await Promise.all([
+    generateStructuredContent<{
+      company_details: CompanyDetails;
+      drive_process: DriveProcess;
+    }>(buildCompanyDrivePrompt(ctx), { maxOutputTokens: 16384 }),
 
-  await sleep(8000); // Wait 8s to reset TPM window
+    generateStructuredContent<{
+      resume_suggestions: ResumeSuggestions;
+      gap_analysis: GapAnalysis;
+    }>(buildResumeGapPrompt(ctx), { maxOutputTokens: 16384 }),
 
-  console.log('▶ Resume + Gap analysis...');
-  const resumeGap = await generateWithRouter<{
-    resume_suggestions: ResumeSuggestions;
-    gap_analysis: GapAnalysis;
-  }>(buildResumeGapPrompt(ctx), {
-    primary: 'groq-large',
-    fallbacks: ['gemini', 'groq-medium'],
-    maxOutputTokens: 3500,
-  });
-
-  await sleep(8000);
-
-  console.log('▶ Preparation Guide...');
-  const prepGuide = await generateWithRouter<PreparationGuide>(
-    buildPrepGuidePrompt(ctx),
-    {
-      primary: 'groq-large',
-      fallbacks: ['gemini', 'groq-medium'],
-      maxOutputTokens: 3500,
-    }
-  );
+    generateStructuredContent<PreparationGuide>(buildPrepGuidePrompt(ctx), {
+      maxOutputTokens: 16384,
+    }),
+  ]);
 
   return {
     company_details: companyDrive.company_details,
@@ -216,6 +246,6 @@ export async function runFullAnalysis(
     resume_suggestions: resumeGap.resume_suggestions,
     gap_analysis: resumeGap.gap_analysis,
     preparation_guide: prepGuide,
-    ai_model: `groq/${GROQ_LARGE_MODEL}`,
+    ai_model: GEMINI_MODEL_NAME,
   };
 }

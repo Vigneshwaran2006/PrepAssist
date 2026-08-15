@@ -109,16 +109,38 @@ export default function ResumeDetailPage(): React.JSX.Element {
           )}
 
           {/* Failed */}
-          {resume.status === 'failed' && (
-            <div className="bg-red-50 border border-red-200 rounded-xl p-8">
-              <h3 className="text-xl font-semibold text-red-700 mb-2">
-                Analysis Failed
-              </h3>
-              <p className="text-red-600 text-sm">
-                {resume.error_message ?? 'An unknown error occurred'}
-              </p>
-            </div>
-          )}
+          {resume.status === 'failed' && (() => {
+            const errorMsg = resume.error_message ?? '';
+            const isBusy =
+              errorMsg.includes('AI service is temporarily busy') ||
+              errorMsg.includes('high demand') ||
+              errorMsg.includes('503') ||
+              errorMsg.includes('overloaded');
+
+            if (isBusy) {
+              return (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-8 text-center">
+                  <div className="w-14 h-14 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <span className="text-2xl">⏳</span>
+                  </div>
+                  <h3 className="text-xl font-semibold text-amber-800 mb-2">Servers Are Busy</h3>
+                  <p className="text-amber-700 text-sm mb-4 max-w-md mx-auto">
+                    Google&apos;s AI servers are busy. Please re-upload your resume in a moment.
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    This usually clears up in 1-2 minutes.
+                  </p>
+                </div>
+              );
+            }
+
+            return (
+              <div className="bg-red-50 border border-red-200 rounded-xl p-8">
+                <h3 className="text-xl font-semibold text-red-700 mb-2">Analysis Failed</h3>
+                <p className="text-red-600 text-sm">{errorMsg || 'An unknown error occurred'}</p>
+              </div>
+            );
+          })()}
 
           {/* Completed */}
           {resume.status === 'completed' && analysis && (
@@ -257,8 +279,8 @@ export default function ResumeDetailPage(): React.JSX.Element {
                           sug.priority === 'high'
                             ? 'bg-red-50 text-red-700 border-red-200'
                             : sug.priority === 'medium'
-                            ? 'bg-amber-50 text-amber-700 border-amber-200'
-                            : 'bg-slate-50 text-slate-600 border-slate-200';
+                              ? 'bg-amber-50 text-amber-700 border-amber-200'
+                              : 'bg-slate-50 text-slate-600 border-slate-200';
                         return (
                           <div
                             key={i}
