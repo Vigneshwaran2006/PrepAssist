@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@/stores/authStore';
 import { authApi } from '@/lib/api/auth';
 
-export default function AuthCallbackPage(): React.JSX.Element {
+function CallbackHandler(): React.JSX.Element {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { setAuth, clearAuth } = useAuthStore();
@@ -55,5 +55,21 @@ export default function AuthCallbackPage(): React.JSX.Element {
         <p className="text-slate-500 text-sm mt-2">Please wait a moment</p>
       </div>
     </div>
+  );
+}
+
+function LoadingFallback(): React.JSX.Element {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-slate-50">
+      <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+}
+
+export default function AuthCallbackPage(): React.JSX.Element {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <CallbackHandler />
+    </Suspense>
   );
 }

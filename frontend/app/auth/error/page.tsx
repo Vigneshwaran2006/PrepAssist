@@ -1,9 +1,10 @@
 'use client';
 
+import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
-export default function AuthErrorPage(): React.JSX.Element {
+function ErrorContent(): React.JSX.Element {
   const searchParams = useSearchParams();
   const message = searchParams.get('message') ?? 'An unexpected error occurred';
 
@@ -25,5 +26,21 @@ export default function AuthErrorPage(): React.JSX.Element {
         </Link>
       </div>
     </div>
+  );
+}
+
+function LoadingFallback(): React.JSX.Element {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-slate-50">
+      <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+}
+
+export default function AuthErrorPage(): React.JSX.Element {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <ErrorContent />
+    </Suspense>
   );
 }
