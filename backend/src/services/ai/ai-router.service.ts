@@ -17,14 +17,10 @@ export interface RouterOptions {
   maxOutputTokens?: number;
 }
 
-function isRateLimit(error: unknown): boolean {
+function isFatalRateLimit(error: unknown): boolean {
   const msg = error instanceof Error ? error.message : String(error);
-  return (
-    msg.includes('429') ||
-    msg.includes('quota') ||
-    msg.includes('rate_limit') ||
-    msg.includes('Quota exceeded')
-  );
+  // 429 = hard rate limit (respect retry-after)
+  return msg.includes('429') && msg.includes('Quota exceeded');
 }
 
 async function callProvider<T>(
@@ -58,15 +54,11 @@ async function callProvider<T>(
   }
 }
 
-/**
- * Smart AI router that tries the primary provider first,
- * then automatically falls back to alternatives on failure.
- */
 export async function generateWithRouter<T>(
   prompt: string,
   options: RouterOptions
 ): Promise<T> {
-  const { primary, fallbacks = [], maxOutputTokens = 16384 } = options;
+  const { primary, fallbacks = [], maxOutputTokens = 8000 } = options;
   const chain: AIProvider[] = [primary, ...fallbacks];
 
   let lastError: unknown;
@@ -82,11 +74,11 @@ export async function generateWithRouter<T>(
       const msg = error instanceof Error ? error.message : String(error);
       console.error(`✗ Provider ${provider} failed:`, msg.slice(0, 200));
 
-      // Don't fall back on rate limit — respect the retry-after
-      if (isRateLimit(error) && provider === chain[chain.length - 1]) {
+      // Only stop trying on catastrophic quota exhaustion of last provider
+      if (isFatalRateLimit(error) && provider === chain[chain.length - 1]) {
         throw error;
       }
-      // Continue to next provider
+      // Continue to next provider (including 413 token limits, 503s, etc.)
     }
   }
 

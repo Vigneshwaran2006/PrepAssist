@@ -18,6 +18,8 @@ import { sendError } from './utils/response';
 
 const app = express();
 
+app.set('trust proxy', 1);
+
 app.use(helmet());
 
 const allowedOrigins = [
