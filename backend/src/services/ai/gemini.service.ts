@@ -3,13 +3,13 @@ import { config } from '../../config/env';
 
 const genAI = new GoogleGenerativeAI(config.GEMINI_API_KEY);
 
-export const GEMINI_MODEL_NAME = 'gemini-flash-latest';
+export const GEMINI_MODEL_NAME = 'gemini-flash-lite-latest';
 
 const FALLBACK_MODELS = [
-  'gemini-flash-latest',
-  'gemini-flash-lite-latest',
-  'gemini-flash-latest',
-  'gemini-flash-lite-latest',
+  'gemini-flash-lite-latest', 
+  'gemini-flash-latest',        
+  'gemini-flash-lite-latest', 
+  'gemini-flash-latest',       
 ];
 
 export function getGeminiModel(
