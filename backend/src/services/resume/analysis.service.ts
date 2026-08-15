@@ -39,107 +39,35 @@ export interface AIAnalysisResult {
 }
 
 function buildResumeAnalysisPrompt(resumeText: string): string {
-  return `You are an expert resume analyzer and ATS (Applicant Tracking System) specialist for tech job applications.
+  // Trim resume to reasonable length
+  const trimmed = resumeText.slice(0, 8000);
 
-Analyze the following resume and return a JSON object with the exact schema below.
+  return `Analyze this resume. Return ONLY valid JSON matching the schema. Use null for missing single values, [] for missing lists.
 
-RULES:
-- Return ONLY valid JSON, no explanations or markdown.
-- Do not invent information. If a field is missing, use null (for single values) or [] (for lists).
-- All dates must be strings in "Month YYYY" format if possible, else the original string, else null.
-- ats_score: 0-100 integer indicating ATS compatibility (formatting, keywords, structure, quantifiable metrics).
-- quality_score: 0-100 integer indicating overall content quality (impact, clarity, relevance, achievements).
-- missing_keywords: important technical/industry keywords likely missing for a tech role.
-- weak_sections: sections that are missing, incomplete, or weak. Include impact level.
-- improvement_suggestions: 5-10 specific, actionable suggestions. Include priority level.
-- strengths: 3-6 strong points of this resume.
-
-JSON SCHEMA:
+SCHEMA:
 {
-  "personal_info": {
-    "name": "string or null",
-    "email": "string or null",
-    "phone": "string or null",
-    "location": "string or null",
-    "linkedin": "string or null",
-    "github": "string or null",
-    "portfolio": "string or null"
-  },
-  "skills": [
-    {
-      "category": "string (e.g. Programming Languages, Frameworks, Databases, Tools, Cloud, Soft Skills)",
-      "items": ["string"]
-    }
-  ],
-  "projects": [
-    {
-      "name": "string",
-      "description": "string",
-      "technologies": ["string"],
-      "link": "string or null",
-      "duration": "string or null",
-      "highlights": ["string (achievements, metrics)"]
-    }
-  ],
-  "education": [
-    {
-      "institution": "string",
-      "degree": "string",
-      "field": "string or null",
-      "start_date": "string or null",
-      "end_date": "string or null",
-      "gpa": "string or null",
-      "achievements": ["string"]
-    }
-  ],
-  "experience": [
-    {
-      "company": "string",
-      "role": "string",
-      "location": "string or null",
-      "start_date": "string or null",
-      "end_date": "string or null (use 'Present' if current)",
-      "duration": "string or null",
-      "responsibilities": ["string"],
-      "technologies": ["string"]
-    }
-  ],
-  "certifications": [
-    {
-      "name": "string",
-      "issuer": "string",
-      "date": "string or null",
-      "credential_id": "string or null",
-      "link": "string or null"
-    }
-  ],
+  "personal_info": {"name":"string|null","email":"string|null","phone":"string|null","location":"string|null","linkedin":"string|null","github":"string|null","portfolio":"string|null"},
+  "skills": [{"category":"string","items":["string"]}],
+  "projects": [{"name":"string","description":"string","technologies":["string"],"link":"string|null","duration":"string|null","highlights":["string"]}],
+  "education": [{"institution":"string","degree":"string","field":"string|null","start_date":"string|null","end_date":"string|null","gpa":"string|null","achievements":["string"]}],
+  "experience": [{"company":"string","role":"string","location":"string|null","start_date":"string|null","end_date":"string|null","duration":"string|null","responsibilities":["string"],"technologies":["string"]}],
+  "certifications": [{"name":"string","issuer":"string","date":"string|null","credential_id":"string|null","link":"string|null"}],
   "ats_score": 0-100,
   "quality_score": 0-100,
   "missing_keywords": ["string"],
-  "weak_sections": [
-    {
-      "section": "string",
-      "reason": "string",
-      "impact": "high | medium | low"
-    }
-  ],
-  "improvement_suggestions": [
-    {
-      "section": "string",
-      "issue": "string",
-      "suggestion": "string",
-      "priority": "high | medium | low"
-    }
-  ],
+  "weak_sections": [{"section":"string","reason":"string","impact":"high|medium|low"}],
+  "improvement_suggestions": [{"section":"string","issue":"string","suggestion":"string","priority":"high|medium|low"}],
   "strengths": ["string"]
 }
 
-RESUME TEXT:
+Provide 5-8 improvement_suggestions and 3-5 strengths.
+
+RESUME:
 """
-${resumeText}
+${trimmed}
 """
 
-Return ONLY the JSON object.`;
+Return ONLY the JSON.`;
 }
 
 export async function analyzeResumeWithAI(
@@ -147,14 +75,14 @@ export async function analyzeResumeWithAI(
 ): Promise<AIAnalysisResult> {
   const prompt = buildResumeAnalysisPrompt(resumeText);
 
-  // Primary: Gemini (great for structured resume extraction)
-  // Fallback: Groq medium (openai/gpt-oss-20b)
+  // Gemini has much higher token limits, use as primary
+  // Groq only as fallback with smaller output budget
   const result = await generateWithRouter<Omit<AIAnalysisResult, 'ai_model'>>(
     prompt,
     {
       primary: 'gemini',
-      fallbacks: ['groq-medium', 'groq-large'],
-      maxOutputTokens: 8192,
+      fallbacks: ['groq-fast', 'groq-medium'],
+      maxOutputTokens: 4000,
     }
   );
 

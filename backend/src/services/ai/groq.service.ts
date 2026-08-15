@@ -121,7 +121,7 @@ export async function generateWithGroq<T>(
   prompt: string,
   options: GroqGenerateOptions = {}
 ): Promise<T> {
-  const { modelName = GROQ_LARGE_MODEL, maxOutputTokens = 16384 } = options;
+  const { modelName = GROQ_LARGE_MODEL, maxOutputTokens = 4000 } = options;
 
   const text = await callGroqWithRetry(prompt, modelName, maxOutputTokens);
 
